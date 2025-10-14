@@ -1,13 +1,13 @@
 #include "esp_check.h"
-
 #include "bsp.h"
-
 #include "esp_lvgl_port.h"
-
 #include "driver/i2c_master.h"
-
+#include "driver/uart.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "lv_examples.h"
 #include "lv_demos.h"
+#include "lv_demo_bmi_dashboard.h"
 
 /* LCD settings */
 #define APP_LCD_LVGL_FULL_REFRESH           (0)
@@ -30,6 +30,18 @@ static lv_display_t *lvgl_disp = NULL;
 static lv_indev_t *lvgl_touch_indev = NULL;
 
 static const char TAG[] = "rgb_panel_v2";
+
+static lv_obj_t *data_label = NULL;
+static char display_buffer[512] = "Waiting for data...";
+
+static void create_data_display(void) {
+    lvgl_port_lock(0);
+    data_label = lv_label_create(lv_screen_active());
+    lv_label_set_text(data_label, display_buffer);
+    lv_obj_set_pos(data_label, 10, 10);
+    lv_obj_set_size(data_label, 780, 100);
+    lvgl_port_unlock();
+}
 
 static esp_err_t app_lcd_init(esp_lcd_panel_handle_t *lp)
 {
@@ -191,11 +203,14 @@ void app_main(void)
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
-    };
+    }; 
     ESP_ERROR_CHECK(gpio_config(&bk_light));
     gpio_set_level(BSP_LCD_GPIO_BK_LIGHT, BSP_LCD_BK_LIGHT_ON_LEVEL);
 
     lvgl_port_lock(0);
-    lv_demo_widgets();
+    lv_demo_bmi_dashboard();
     lvgl_port_unlock();
+    
+    setup_uart_receiver();
+    create_data_display();
 }
