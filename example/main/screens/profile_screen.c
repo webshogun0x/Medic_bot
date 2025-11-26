@@ -56,6 +56,26 @@ void profile_update_data(const profile_data_t * data)
     }
 }
 
+void profile_update_user_data(const char* name, const char* age, const char* gender)
+{
+    if (name && age && gender) {
+        strncpy(current_profile.name, name, sizeof(current_profile.name) - 1);
+        current_profile.name[sizeof(current_profile.name) - 1] = '\0';
+        
+        strncpy(current_profile.gender, gender, sizeof(current_profile.gender) - 1);
+        current_profile.gender[sizeof(current_profile.gender) - 1] = '\0';
+        
+        // Parse age string to integer
+        char* age_num = strstr(age, " ");
+        if (age_num) {
+            *age_num = '\0'; // Terminate at space
+        }
+        current_profile.age = atoi(age);
+        
+        update_display();
+    }
+}
+
 void profile_get_data(profile_data_t * data)
 {
     if (data) {
@@ -81,12 +101,12 @@ static void create_profile_fields(lv_obj_t * parent)
     lv_obj_set_grid_dsc_array(profile_panel, grid_col_dsc, grid_row_dsc);
 
     lv_obj_t * profile_title = lv_label_create(profile_panel);
-    lv_label_set_text(profile_title, "Your Profile");
+    lv_label_set_text(profile_title, "Profile");
     lv_obj_set_style_text_font(profile_title, &lv_font_montserrat_16, 0);
     lv_obj_set_grid_cell(profile_title, LV_GRID_ALIGN_START, 0, 2, LV_GRID_ALIGN_CENTER, 0, 1);
 
     lv_obj_t * name_label_title = lv_label_create(profile_panel);
-    lv_label_set_text(name_label_title, "Name");
+    lv_label_set_text(name_label_title, "Name:");
     lv_obj_set_style_text_color(name_label_title, lv_color_hex(0x666666), 0);
     lv_obj_set_grid_cell(name_label_title, LV_GRID_ALIGN_START, 0, 2, LV_GRID_ALIGN_START, 2, 1);
 
@@ -97,7 +117,7 @@ static void create_profile_fields(lv_obj_t * parent)
     lv_obj_add_event_cb(name_label, keyboard_event_cb, LV_EVENT_ALL, keyboard);
 
     lv_obj_t * gender_label_title = lv_label_create(profile_panel);
-    lv_label_set_text(gender_label_title, "Gender");
+    lv_label_set_text(gender_label_title, "Gender:");
     lv_obj_set_style_text_color(gender_label_title, lv_color_hex(0x666666), 0);
     lv_obj_set_grid_cell(gender_label_title, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_START, 5, 1);
 
@@ -107,7 +127,7 @@ static void create_profile_fields(lv_obj_t * parent)
     lv_obj_add_event_cb(gender_label, dropdown_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     lv_obj_t * age_label_title = lv_label_create(profile_panel);
-    lv_label_set_text(age_label_title, "Birthday");
+    lv_label_set_text(age_label_title, "Birthday:");
     lv_obj_set_style_text_color(age_label_title, lv_color_hex(0x666666), 0);
     lv_obj_set_grid_cell(age_label_title, LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_START, 5, 1);
 
@@ -118,24 +138,24 @@ static void create_profile_fields(lv_obj_t * parent)
     lv_obj_add_event_cb(age_label, birthday_event_cb, LV_EVENT_ALL, NULL);
 
     lv_obj_t * weight_label_title = lv_label_create(profile_panel);
-    lv_label_set_text(weight_label_title, "Weight (kg)");
+    lv_label_set_text(weight_label_title, "Weight:");
     lv_obj_set_style_text_color(weight_label_title, lv_color_hex(0x666666), 0);
     lv_obj_set_grid_cell(weight_label_title, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_START, 8, 1);
 
     weight_label = lv_textarea_create(profile_panel);
     lv_textarea_set_one_line(weight_label, true);
-    lv_textarea_set_placeholder_text(weight_label, "Enter weight");
+    lv_textarea_set_placeholder_text(weight_label, "kg");
     lv_obj_set_grid_cell(weight_label, LV_GRID_ALIGN_STRETCH, 0, 1, LV_GRID_ALIGN_CENTER, 9, 1);
     lv_obj_add_event_cb(weight_label, keyboard_event_cb, LV_EVENT_ALL, keyboard);
 
     lv_obj_t * height_label_title = lv_label_create(profile_panel);
-    lv_label_set_text(height_label_title, "Height (cm)");
+    lv_label_set_text(height_label_title, "Height:");
     lv_obj_set_style_text_color(height_label_title, lv_color_hex(0x666666), 0);
     lv_obj_set_grid_cell(height_label_title, LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_START, 8, 1);
 
     height_label = lv_textarea_create(profile_panel);
     lv_textarea_set_one_line(height_label, true);
-    lv_textarea_set_placeholder_text(height_label, "Enter height");
+    lv_textarea_set_placeholder_text(height_label, "cm");
     lv_obj_set_grid_cell(height_label, LV_GRID_ALIGN_STRETCH, 1, 1, LV_GRID_ALIGN_CENTER, 9, 1);
     lv_obj_add_event_cb(height_label, keyboard_event_cb, LV_EVENT_ALL, keyboard);
 
@@ -188,12 +208,14 @@ static void create_profile_overview(lv_obj_t * parent)
     lv_obj_center(avatar_initials);
 
     profile_name_display = lv_label_create(overview_panel);
-    lv_label_set_text(profile_name_display, "Oluwatimileyin");
+    lv_label_set_text(profile_name_display, "User");
     lv_obj_set_style_text_font(profile_name_display, &lv_font_montserrat_16, 0);
+    lv_label_set_long_mode(profile_name_display, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_width(profile_name_display, LV_PCT(90));
     lv_obj_align_to(profile_name_display, avatar, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
 
     lv_obj_t * desc = lv_label_create(overview_panel);
-    lv_label_set_text(desc, "Health monitoring profile");
+    lv_label_set_text(desc, "Health Profile");
     lv_obj_set_style_text_color(desc, lv_color_hex(0x666666), 0);
     lv_label_set_long_mode(desc, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(desc, LV_PCT(90));
@@ -375,5 +397,9 @@ static void update_button_event_cb(lv_event_t * e)
 
 static void logout_button_event_cb(lv_event_t * e)
 {
+    // Send logout command to ESP32-S3
+    send_uart_command("LOGOUT");
+    
+    // Return to instruction screen
     display_show_instruction_screen();
 }

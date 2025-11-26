@@ -16,8 +16,6 @@ static void back_btn_cb(lv_event_t * e)
 {
     lv_obj_delete(login_screen);
     display_show_instruction_screen();
-    // Request current MODE_SWITCH state when returning to instruction screen
-    send_uart_command("GET_MODE_SWITCH");
 }
 
 static void textarea_focus_cb(lv_event_t * e)

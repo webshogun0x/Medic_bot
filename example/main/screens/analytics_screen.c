@@ -9,6 +9,9 @@ static lv_obj_t * analytics_temp_value;
 static lv_obj_t * analytics_hr_value;
 static lv_obj_t * analytics_bmi_arc;
 static lv_obj_t * analytics_temp_arc;
+static lv_obj_t * diastolic_ta;
+static lv_obj_t * systolic_ta;
+static lv_obj_t * keyboard;
 
 typedef struct {
     float bmi;
@@ -23,6 +26,8 @@ static sensor_readings_t current_readings = {
     .heart_rate = 72,
     .spo2 = 98
 };
+
+static void keyboard_ready_cb(lv_event_t * e);
 
 static void generate_random_readings(void)
 {
@@ -46,7 +51,8 @@ void send_uart_command(const char* command);
 
 static void save_button_event_cb(lv_event_t * e)
 {
-    // Save functionality placeholder
+    // Send command to ESP32-S3 to save current readings
+    send_uart_command("SAVE_READINGS");
 }
 
 static void create_bmi_section(lv_obj_t * parent)
@@ -157,9 +163,15 @@ static void create_temperature_section(lv_obj_t * parent)
     lv_obj_set_style_text_font(temp_title, &lv_font_montserrat_16, 0);
     lv_obj_align(temp_title, LV_ALIGN_TOP_RIGHT, 0, 0);
     
-    lv_obj_t * temp_arc = lv_arc_create(temp_cont);
+    lv_obj_t * gauge_cont = lv_obj_create(temp_cont);
+    lv_obj_set_size(gauge_cont, 120, 120);
+    lv_obj_align(gauge_cont, LV_ALIGN_CENTER, 0, 10);
+    lv_obj_set_style_bg_opa(gauge_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(gauge_cont, LV_OPA_TRANSP, 0);
+    
+    lv_obj_t * temp_arc = lv_arc_create(gauge_cont);
     lv_obj_set_size(temp_arc, 120, 120);
-    lv_obj_align(temp_arc, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_center(temp_arc);
     lv_arc_set_range(temp_arc, 95, 105);
     lv_arc_set_value(temp_arc, 98);
     lv_arc_set_bg_angles(temp_arc, 135, 45);
@@ -170,7 +182,7 @@ static void create_temperature_section(lv_obj_t * parent)
     lv_obj_remove_style(temp_arc, NULL, LV_PART_KNOB);
     lv_obj_clear_flag(temp_arc, LV_OBJ_FLAG_CLICKABLE);
     
-    analytics_temp_value = lv_label_create(temp_cont);
+    analytics_temp_value = lv_label_create(gauge_cont);
     lv_label_set_text(analytics_temp_value, "98.6°C");
     lv_obj_set_style_text_font(analytics_temp_value, &lv_font_montserrat_16, 0);
     lv_obj_align(analytics_temp_value, LV_ALIGN_CENTER, 0, 0);
@@ -219,10 +231,74 @@ static void create_heart_rate_section(lv_obj_t * parent)
     lv_obj_align(analytics_hr_value, LV_ALIGN_BOTTOM_MID, 0, 0);
 }
 
+static void textarea_focus_cb(lv_event_t * e)
+{
+    lv_obj_t * ta = lv_event_get_target(e);
+    if (keyboard == NULL) {
+        keyboard = lv_keyboard_create(lv_layer_top());
+        lv_obj_set_size(keyboard, LV_PCT(100), LV_PCT(40));
+        lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
+        lv_obj_add_event_cb(keyboard, keyboard_ready_cb, LV_EVENT_ALL, NULL);
+    }
+    lv_keyboard_set_textarea(keyboard, ta);
+}
+
+static void keyboard_ready_cb(lv_event_t * e)
+{
+    lv_keyboard_def_event_cb(e);
+    
+    if(lv_event_get_code(e) == LV_EVENT_READY || lv_event_get_code(e) == LV_EVENT_CANCEL) {
+        if (keyboard) {
+            lv_obj_delete(keyboard);
+            keyboard = NULL;
+        }
+    }
+}
+
+static void create_blood_pressure_section(lv_obj_t * parent)
+{
+    lv_obj_t * bp_cont = lv_obj_create(parent);
+    lv_obj_set_grid_cell(bp_cont, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_STRETCH, 2, 1);
+    lv_obj_set_style_bg_color(bp_cont, lv_color_white(), 0);
+    lv_obj_set_style_radius(bp_cont, 15, 0);
+    lv_obj_set_style_pad_all(bp_cont, 20, 0);
+    
+    lv_obj_t * bp_title = lv_label_create(bp_cont);
+    lv_label_set_text(bp_title, "Blood Pressure");
+    lv_obj_set_style_text_font(bp_title, &lv_font_montserrat_16, 0);
+    lv_obj_align(bp_title, LV_ALIGN_TOP_MID, 0, 0);
+    
+    // Systolic input
+    lv_obj_t * systolic_label = lv_label_create(bp_cont);
+    lv_label_set_text(systolic_label, "Systolic:");
+    lv_obj_set_style_text_font(systolic_label, &lv_font_montserrat_14, 0);
+    lv_obj_align(systolic_label, LV_ALIGN_TOP_LEFT, 0, 35);
+    
+    systolic_ta = lv_textarea_create(bp_cont);
+    lv_obj_set_size(systolic_ta, 120, 40);
+    lv_textarea_set_placeholder_text(systolic_ta, "120");
+    lv_textarea_set_one_line(systolic_ta, true);
+    lv_obj_align_to(systolic_ta, systolic_label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+    lv_obj_add_event_cb(systolic_ta, textarea_focus_cb, LV_EVENT_FOCUSED, NULL);
+    
+    // Diastolic input
+    lv_obj_t * diastolic_label = lv_label_create(bp_cont);
+    lv_label_set_text(diastolic_label, "Diastolic:");
+    lv_obj_set_style_text_font(diastolic_label, &lv_font_montserrat_14, 0);
+    lv_obj_align(diastolic_label, LV_ALIGN_TOP_RIGHT, 0, 35);
+    
+    diastolic_ta = lv_textarea_create(bp_cont);
+    lv_obj_set_size(diastolic_ta, 120, 40);
+    lv_textarea_set_placeholder_text(diastolic_ta, "80");
+    lv_textarea_set_one_line(diastolic_ta, true);
+    lv_obj_align_to(diastolic_ta, diastolic_label, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, 5);
+    lv_obj_add_event_cb(diastolic_ta, textarea_focus_cb, LV_EVENT_FOCUSED, NULL);
+}
+
 static void create_action_buttons(lv_obj_t * parent)
 {
     lv_obj_t * btn_cont = lv_obj_create(parent);
-    lv_obj_set_grid_cell(btn_cont, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_CENTER, 2, 1);
+    lv_obj_set_grid_cell(btn_cont, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_CENTER, 3, 1);
     lv_obj_set_style_bg_opa(btn_cont, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_opa(btn_cont, LV_OPA_TRANSP, 0);
     lv_obj_set_flex_flow(btn_cont, LV_FLEX_FLOW_ROW);
@@ -261,13 +337,14 @@ void analytics_screen_create(lv_obj_t * parent)
     lv_obj_set_style_bg_color(parent, lv_color_hex(0xf0f0f0), 0);
     
     static int32_t analytics_col_dsc[] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
-    static int32_t analytics_row_dsc[] = {LV_GRID_FR(1), LV_GRID_FR(1), 60, LV_GRID_TEMPLATE_LAST};
+    static int32_t analytics_row_dsc[] = {LV_GRID_FR(1), LV_GRID_FR(1), 120, 60, LV_GRID_TEMPLATE_LAST};
     lv_obj_set_grid_dsc_array(parent, analytics_col_dsc, analytics_row_dsc);
     
     create_bmi_section(parent);
     create_spo2_section(parent);
     create_temperature_section(parent);
     create_heart_rate_section(parent);
+    create_blood_pressure_section(parent);
     create_action_buttons(parent);
 }
 

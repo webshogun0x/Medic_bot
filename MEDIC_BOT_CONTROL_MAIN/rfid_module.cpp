@@ -1,7 +1,7 @@
 #include "pins_arduino.h"
 #include <iterator>
 #include "esp32-hal-spi.h"
-#include "rfid_module.h"
+#include <rfid_module.h>
 
 MFRC522 rfid(SS_PIN, RST_PIN);
 MFRC522::MIFARE_Key key;

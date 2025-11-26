@@ -8,7 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-static bool is_instruction_screen_active = false;
+
 
 void display_manager_init(void)
 {
@@ -23,28 +23,24 @@ void display_show_boot_screen(void)
 void display_show_instruction_screen(void)
 {
     lv_obj_clean(lv_screen_active());
-    is_instruction_screen_active = true;
     instruction_screen_create();
 }
 
 void display_show_login_screen(void)
 {
     lv_obj_clean(lv_screen_active());
-    is_instruction_screen_active = false;
     login_screen_create();
 }
 
 void display_show_enroll_screen(void)
 {
     lv_obj_clean(lv_screen_active());
-    is_instruction_screen_active = false;
     enroll_screen_create();
 }
 
 void display_show_dashboard(void)
 {
     lv_obj_clean(lv_screen_active());
-    is_instruction_screen_active = false;
     lv_obj_t * main_dashboard = lv_tabview_create(lv_screen_active());
     lv_tabview_set_tab_bar_size(main_dashboard, 60);
     
@@ -73,14 +69,7 @@ static void uart_message_task(void *pvParameters) {
             // Parse JSON message from ESP32-S3
             char* type_start = strstr((char*)data, "\"type\":\"");
             char* msg_start = strstr((char*)data, "\"message\":\"");
-            char* mode_start = strstr((char*)data, "\"mode_switch\":");
-            
-            // Parse mode_switch state only if instruction screen is active
-            if (mode_start && is_instruction_screen_active) {
-                mode_start += 14; // Skip '"mode_switch":'
-                bool switch_high = (strncmp(mode_start, "true", 4) == 0);
-                instruction_update_mode_switch(switch_high);
-            }
+
             
             if (type_start && msg_start) {
                 type_start += 8; // Skip '"type":"'
@@ -99,6 +88,12 @@ static void uart_message_task(void *pvParameters) {
                     // Route to appropriate screen based on message type
                     if (strcmp(type_start, "PROMPT") == 0) {
                         receivedMsg.msg_type = 1; // Blue for prompts
+                        
+                        // Handle logout confirmation
+                        if (strstr(msg_start, "Logged out successfully")) {
+                            receivedMsg.msg_type = 3; // Green for success
+                        }
+                        
                         display_message_handler(&receivedMsg);
                         
                         // Check if message contains RFID detection
@@ -115,6 +110,30 @@ static void uart_message_task(void *pvParameters) {
                         login_update_fingerprint_status(false, msg_start);
                     } else if (strcmp(type_start, "USER_DATA") == 0) {
                         receivedMsg.msg_type = 3; // Green for success
+                        
+                        // Extract user data from JSON
+                        char* name_start = strstr((char*)data, "\"user_name\":\"");
+                        char* age_start = strstr((char*)data, "\"user_age\":\"");
+                        char* gender_start = strstr((char*)data, "\"user_gender\":\"");
+                        
+                        if (name_start && age_start && gender_start) {
+                            name_start += 13; // Skip '"user_name":"'
+                            age_start += 12; // Skip '"user_age":"'
+                            gender_start += 15; // Skip '"user_gender":"'
+                            
+                            char* name_end = strchr(name_start, '"');
+                            char* age_end = strchr(age_start, '"');
+                            char* gender_end = strchr(gender_start, '"');
+                            
+                            if (name_end && age_end && gender_end) {
+                                *name_end = '\0';
+                                *age_end = '\0';
+                                *gender_end = '\0';
+                                
+                                profile_update_user_data(name_start, age_start, gender_start);
+                            }
+                        }
+                        
                         display_show_dashboard();
                         display_message_handler(&receivedMsg);
                     } else if (strcmp(type_start, "SENSOR_DATA") == 0) {

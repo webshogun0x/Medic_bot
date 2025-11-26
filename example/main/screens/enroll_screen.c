@@ -22,8 +22,6 @@ void display_message_handler(const display_message_t * msg)
 static void back_button_event_cb(lv_event_t * e)
 {
     display_show_instruction_screen();
-    // Request current MODE_SWITCH state when returning to instruction screen
-    send_uart_command("GET_MODE_SWITCH");
 }
 
 void enroll_screen_create(void)
