@@ -10,6 +10,10 @@ extern double user_bmi_laser, user_bmi_sonar;
 extern String weightStatus, tempaStatus, tempoStatus, heightLaserStatus, heightSonarStatus;
 extern String bmiLaserStatus, bmiSonarStatus;
 
+// MAC address of HEIGHT_WEIGHT_MODULE ESP32-S3
+// TODO: Replace with actual MAC address from HEIGHT_WEIGHT_MODULE
+uint8_t heightWeightModuleMAC[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
 void initESPNow() {
   WiFi.mode(WIFI_STA);
   if (esp_now_init() != ESP_OK) {
@@ -17,6 +21,19 @@ void initESPNow() {
     while (true);
   }
   esp_now_register_recv_cb(esp_now_recv_cb_t(OnDataRecv));
+  
+  // Add HEIGHT_WEIGHT_MODULE as peer
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(peerInfo.peer_addr, heightWeightModuleMAC, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+  
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add HEIGHT_WEIGHT_MODULE peer");
+  }
+  
+  Serial.print("Main Controller MAC: ");
+  Serial.println(WiFi.macAddress());
 }
 
 void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
@@ -25,12 +42,53 @@ void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len) {
   snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
   Serial.println(macStr);
-  memcpy(&myData, incomingData, sizeof(myData));
-  Serial.printf("Board ID %u: %u bytes\n", myData.id, len);
   
-  boardsStruct[myData.id - 1].a = myData.a;
-  boardsStruct[myData.id - 1].b = myData.b;
-  boardsStruct[myData.id - 1].c = myData.c;
+  // Check if it's measurement data from HEIGHT_WEIGHT_MODULE
+  if (len == sizeof(measurement_data_t)) {
+    measurement_data_t* data = (measurement_data_t*)incomingData;
+    Serial.println("Received HEIGHT_WEIGHT data:");
+    Serial.print("Weight: "); Serial.print(data->weight_kg); Serial.println(" kg");
+    Serial.print("Height: "); Serial.print(data->height_cm); Serial.println(" cm");
+    Serial.print("BMI: "); Serial.println(data->bmi);
+    
+    // Store in global variables
+    user_weight = data->weight_kg;
+    user_height_laser = data->height_cm / 100.0; // Convert to meters
+    user_bmi_laser = data->bmi;
+  } else {
+    // Legacy format for other boards
+    memcpy(&myData, incomingData, sizeof(myData));
+    Serial.printf("Board ID %u: %u bytes\n", myData.id, len);
+    
+    boardsStruct[myData.id - 1].a = myData.a;
+    boardsStruct[myData.id - 1].b = myData.b;
+    boardsStruct[myData.id - 1].c = myData.c;
+  }
+}
+
+// Data structure matching HEIGHT_WEIGHT_MODULE
+typedef struct {
+  float weight_kg;
+  float height_cm;
+  float bmi;
+  uint32_t timestamp;
+} measurement_data_t;
+
+void requestESPNowData() {
+  Serial.println("Requesting data from HEIGHT_WEIGHT_MODULE...");
+  
+  // Send request command (0xAA = request code)
+  uint8_t requestCmd = 0xAA;
+  esp_err_t result = esp_now_send(heightWeightModuleMAC, &requestCmd, 1);
+  
+  if (result == ESP_OK) {
+    Serial.println("Request sent successfully");
+  } else {
+    Serial.println("Error sending request");
+  }
+  
+  // Wait for response (data will arrive via OnDataRecv callback)
+  delay(500);
 }
 
 void readESPNowData() {

@@ -16,6 +16,7 @@ extern struct_message boardsStruct[3];
 
 void initESPNow();
 void OnDataRecv(const uint8_t *mac_addr, const uint8_t *incomingData, int len);
+void requestESPNowData();
 void readESPNowData();
 
 #endif
